@@ -2089,10 +2089,11 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					// EXT_texture_format_BGRA8888 wants both format and internal
 					// format to be BGRA.
 					//
-					// Reference:
-					// https://www.khronos.org/registry/gles/extensions/EXT/EXT_texture_format_BGRA8888.txt
-					// https://www.opengl.org/registry/specs/EXT/bgra.txt
-					// https://www.khronos.org/registry/gles/extensions/APPLE/APPLE_texture_format_BGRA8888.txt
+					// Reference(s):
+					// - https://web.archive.org/web/20181126035829/https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_format_BGRA8888.txt
+					// - https://web.archive.org/web/20181126035841/https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_bgra.txt
+					// - https://web.archive.org/web/20181126035851/https://www.khronos.org/registry/OpenGL/extensions/APPLE/APPLE_texture_format_BGRA8888.txt
+					//
 					if (!s_extension[Extension::EXT_bgra                     ].m_supported
 					&&  !s_extension[Extension::APPLE_texture_format_BGRA8888].m_supported)
 					{
@@ -2276,7 +2277,8 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					: 0
 					;
 
-				if (NULL == glPolygonMode)
+				if (BX_ENABLED(BX_PLATFORM_EMSCRIPTEN)
+				||  NULL == glPolygonMode)
 				{
 					glPolygonMode = stubPolygonMode;
 				}
@@ -2337,12 +2339,12 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 							);
 				}
 
-	//			if (s_extension[Extension::ARB_clip_control].m_supported)
-	//			{
-	//				GL_CHECK(glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE) );
-	//				g_caps.originBottomLeft = true;
-	//			}
-	//			else
+//				if (s_extension[Extension::ARB_clip_control].m_supported)
+//				{
+//					GL_CHECK(glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE) );
+//					g_caps.originBottomLeft = true;
+//				}
+//				else
 				{
 					g_caps.homogeneousDepth = true;
 					g_caps.originBottomLeft = true;
@@ -4618,8 +4620,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					, _depth
 					) );
 			}
-
-			if (computeWrite)
+			else if (computeWrite)
 			{
 				if (_target == GL_TEXTURE_3D)
 				{
@@ -5306,6 +5307,8 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 				char* temp = (char*)alloca(tempLen);
 				bx::StaticMemoryBlockWriter writer(temp, tempLen);
 
+				bx::Error err;
+
 				if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES)
 				&&  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES < 30) )
 				{
@@ -5446,7 +5449,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 						}
 					}
 
-					bx::writePrintf(&writer, "precision %s float;\n"
+					bx::write(&writer, &err, "precision %s float;\n"
 						, m_type == GL_FRAGMENT_SHADER ? "mediump" : "highp"
 						);
 
@@ -5463,8 +5466,8 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 							bx::StringView brace = bx::strFind(entry, "{");
 							if (!brace.isEmpty() )
 							{
-								const char* end = bx::strmb(brace.getPtr(), '{', '}');
-								if (NULL != end)
+								bx::StringView block = bx::strFindBlock(bx::StringView(brace.getPtr(), shader.getTerm() ), '{', '}');
+								if (!block.isEmpty() )
 								{
 									strins(const_cast<char*>(brace.getPtr()+1), "\n  float bgfx_FragDepth = 0.0;\n");
 								}
@@ -5515,7 +5518,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 					if (0 != version)
 					{
-						bx::writePrintf(&writer, "#version %d\n", version);
+						bx::write(&writer, &err, "#version %d\n", version);
 					}
 
 					if (usesTextureLod)
@@ -5607,7 +5610,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 						if (0 != fragData)
 						{
-							bx::writePrintf(&writer, "out vec4 bgfx_FragData[%d];\n", fragData);
+							bx::write(&writer, &err, "out vec4 bgfx_FragData[%d];\n", fragData);
 							bx::write(&writer, "#define gl_FragData bgfx_FragData\n");
 						}
 						else
@@ -5655,7 +5658,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 				{
 					if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 30) )
 					{
-						bx::writePrintf(&writer
+						bx::write(&writer, &err
 							, "#version 300 es\n"
 							  "precision %s float;\n"
 							, m_type == GL_FRAGMENT_SHADER ? "mediump" : "highp"
@@ -5730,7 +5733,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 						if (0 != fragData)
 						{
-							bx::writePrintf(&writer, "out vec4 bgfx_FragData[%d];\n", fragData);
+							bx::write(&writer, &err, "out vec4 bgfx_FragData[%d];\n", fragData);
 							bx::write(&writer, "#define gl_FragData bgfx_FragData\n");
 						}
 						else
@@ -5773,12 +5776,15 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 				bx::write(&writer
 					, "#version 430\n"
-					  "#define texture2DLod    textureLod\n"
-					  "#define texture3DLod    textureLod\n"
-					  "#define textureCubeLod  textureLod\n"
-					  "#define texture2DGrad   textureGrad\n"
-					  "#define texture3DGrad   textureGrad\n"
-					  "#define textureCubeGrad textureGrad\n"
+					  "#define texture2DLod             textureLod\n"
+					  "#define texture2DLodOffset       textureLodOffset\n"
+					  "#define texture2DArrayLod        textureLod\n"
+					  "#define texture2DArrayLodOffset  textureLodOffset\n"
+					  "#define texture3DLod             textureLod\n"
+					  "#define textureCubeLod           textureLod\n"
+					  "#define texture2DGrad            textureGrad\n"
+					  "#define texture3DGrad            textureGrad\n"
+					  "#define textureCubeGrad          textureGrad\n"
 					);
 
 				bx::write(&writer, code.getPtr()+bx::strLen("#version 430"), codeLen);
@@ -5873,15 +5879,16 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			uint32_t colorIdx = 0;
 			for (uint32_t ii = 0; ii < m_numTh; ++ii)
 			{
-				TextureHandle handle = m_attachment[ii].handle;
-				if (isValid(handle) )
+				const Attachment& at = m_attachment[ii];
+
+				if (isValid(at.handle) )
 				{
-					const TextureGL& texture = s_renderGL->m_textures[handle.idx];
+					const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
 
 					if (0 == colorIdx)
 					{
-						m_width  = bx::uint32_max(texture.m_width  >> m_attachment[ii].mip, 1);
-						m_height = bx::uint32_max(texture.m_height >> m_attachment[ii].mip, 1);
+						m_width  = bx::uint32_max(texture.m_width  >> at.mip, 1);
+						m_height = bx::uint32_max(texture.m_height >> at.mip, 1);
 					}
 
 					GLenum attachment = GL_COLOR_ATTACHMENT0 + colorIdx;
@@ -5926,13 +5933,15 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 						}
 						else
 #endif
+						{
 							GL_CHECK(glFramebufferRenderbuffer(GL_FRAMEBUFFER
 								, attachment
 								, GL_RENDERBUFFER
 								, texture.m_rbo
 								) );
+						}
 					}
-					else
+					else if (Access::Write == at.access)
 					{
 						if (1 < texture.m_depth
 						&&  !texture.isCubeMap())
@@ -5940,14 +5949,14 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 							GL_CHECK(glFramebufferTextureLayer(GL_FRAMEBUFFER
 								, attachment
 								, texture.m_id
-								, m_attachment[ii].mip
-								, m_attachment[ii].layer
-							) );
+								, at.mip
+								, at.layer
+								) );
 						}
 						else
 						{
 							GLenum target = texture.isCubeMap()
-								? GL_TEXTURE_CUBE_MAP_POSITIVE_X + m_attachment[ii].layer
+								? GL_TEXTURE_CUBE_MAP_POSITIVE_X + at.layer
 								: texture.m_target
 								;
 
@@ -5955,9 +5964,13 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 								, attachment
 								, target
 								, texture.m_id
-								, m_attachment[ii].mip
-							) );
+								, at.mip
+								) );
 						}
+					}
+					else
+					{
+						BX_CHECK(false, "");
 					}
 
 					needResolve |= (0 != texture.m_rbo) && (0 != texture.m_id);
@@ -5996,10 +6009,11 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 				colorIdx = 0;
 				for (uint32_t ii = 0; ii < m_numTh; ++ii)
 				{
-					TextureHandle handle = m_attachment[ii].handle;
-					if (isValid(handle) )
+					const Attachment& at = m_attachment[ii];
+
+					if (isValid(at.handle) )
 					{
-						const TextureGL& texture = s_renderGL->m_textures[handle.idx];
+						const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
 
 						if (0 != texture.m_id)
 						{
@@ -6009,7 +6023,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 								++colorIdx;
 
 								GLenum target = texture.isCubeMap()
-									? GL_TEXTURE_CUBE_MAP_POSITIVE_X + m_attachment[ii].layer
+									? GL_TEXTURE_CUBE_MAP_POSITIVE_X + at.layer
 									: texture.m_target
 									;
 
@@ -6017,7 +6031,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 									, attachment
 									, target
 									, texture.m_id
-									, m_attachment[ii].mip
+									, at.mip
 									) );
 							}
 						}
@@ -6072,10 +6086,11 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			uint32_t colorIdx = 0;
 			for (uint32_t ii = 0; ii < m_numTh; ++ii)
 			{
-				TextureHandle handle = m_attachment[ii].handle;
-				if (isValid(handle) )
+				const Attachment& at = m_attachment[ii];
+
+				if (isValid(at.handle) )
 				{
-					const TextureGL& texture = s_renderGL->m_textures[handle.idx];
+					const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
 
 					bimg::TextureFormat::Enum format = bimg::TextureFormat::Enum(texture.m_textureFormat);
 					if (!bimg::isDepth(format) )
@@ -6108,6 +6123,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		for (uint32_t ii = 0; ii < m_numTh; ++ii)
 		{
 			const Attachment& at = m_attachment[ii];
+
 			if (isValid(at.handle) )
 			{
 				const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
@@ -6334,12 +6350,11 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		RenderBind currentBind;
 		currentBind.clear();
 
-		const bool hmdEnabled = false;
 		static ViewState viewState;
-		viewState.reset(_render, hmdEnabled);
+		viewState.reset(_render);
 
-		uint16_t programIdx = kInvalidHandle;
-		uint16_t boundProgramIdx = kInvalidHandle;
+		ProgramHandle currentProgram = BGFX_INVALID_HANDLE;
+		ProgramHandle boundProgram   = BGFX_INVALID_HANDLE;
 		SortKey key;
 		uint16_t view = UINT16_MAX;
 		FrameBufferHandle fbh = { BGFX_CONFIG_MAX_FRAME_BUFFERS };
@@ -6393,18 +6408,14 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			m_occlusionQuery.resolve(_render);
 		}
 
-		uint8_t eye = 0;
-
 		if (0 == (_render->m_debug&BGFX_DEBUG_IFH) )
 		{
 			GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, m_msaaBackBufferFbo) );
 
-			bool viewRestart = false;
-			uint8_t restartState = 0;
 			viewState.m_rect = _render->m_view[0].m_rect;
-
 			int32_t numItems = _render->m_numRenderItems;
-			for (int32_t item = 0, restartItem = numItems; item < numItems || restartItem < numItems;)
+
+			for (int32_t item = 0; item < numItems;)
 			{
 				const uint64_t encodedKey = _render->m_sortKeys[item];
 				const bool isCompute = key.decode(encodedKey, _render->m_viewRemap);
@@ -6422,41 +6433,14 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 				if (viewChanged)
 				{
-					if (1 == restartState)
-					{
-						restartState = 2;
-						item = restartItem;
-						restartItem = numItems;
-						view = UINT16_MAX;
-						continue;
-					}
-
 					view = key.m_view;
-					programIdx = kInvalidHandle;
+					currentProgram = BGFX_INVALID_HANDLE;
 
 					if (_render->m_view[view].m_fbh.idx != fbh.idx)
 					{
 						fbh = _render->m_view[view].m_fbh;
 						resolutionHeight = _render->m_resolution.height;
 						resolutionHeight = setFrameBuffer(fbh, resolutionHeight, discardFlags);
-					}
-
-					viewRestart = ( (BGFX_VIEW_STEREO == (_render->m_view[view].m_flags & BGFX_VIEW_STEREO) ) );
-					viewRestart &= hmdEnabled;
-					if (viewRestart)
-					{
-						if (0 == restartState)
-						{
-							restartState = 1;
-							restartItem  = item - 1;
-						}
-
-						eye = (restartState - 1) & 1;
-						restartState &= 1;
-					}
-					else
-					{
-						eye = 0;
 					}
 
 					if (item > 1)
@@ -6467,28 +6451,12 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					profiler.begin(view);
 
 					viewState.m_rect = _render->m_view[view].m_rect;
-					if (viewRestart)
+					if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
 					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							char* viewName = s_viewName[view];
-							viewName[3] = ' ';
-							viewName[4] = eye ? 'R' : 'L';
-							GL_CHECK(glInsertEventMarker(0, viewName) );
-						}
-
-						viewState.m_rect.m_x = eye * (viewState.m_rect.m_width+1)/2;
-						viewState.m_rect.m_width /= 2;
-					}
-					else
-					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							char* viewName = s_viewName[view];
-							viewName[3] = ' ';
-							viewName[4] = ' ';
-							GL_CHECK(glInsertEventMarker(0, viewName) );
-						}
+						char* viewName = s_viewName[view];
+						viewName[3] = ' ';
+						viewName[4] = ' ';
+						GL_CHECK(glInsertEventMarker(0, viewName) );
 					}
 
 					const Rect& scissorRect = _render->m_view[view].m_scissor;
@@ -6536,7 +6504,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					{
 						const RenderCompute& compute = renderItem.compute;
 
-						ProgramGL& program = m_program[key.m_program];
+						ProgramGL& program = m_program[key.m_program.idx];
 						GL_CHECK(glUseProgram(program.m_id) );
 
 						GLbitfield barrier = 0;
@@ -6550,30 +6518,22 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 								case Binding::Texture:
 									{
 										TextureGL& texture = m_textures[bind.m_idx];
-										texture.commit(ii, bind.m_un.m_draw.m_textureFlags, _render->m_colorPalette);
+										texture.commit(ii, bind.m_samplerFlags, _render->m_colorPalette);
 									}
 									break;
 
 								case Binding::Image:
 									{
-										if (Access::Read == bind.m_un.m_compute.m_access)
-										{
-											TextureGL& texture = m_textures[bind.m_idx];
-											texture.commit(ii, uint32_t(texture.m_flags), _render->m_colorPalette);
-										}
-										else
-										{
-											const TextureGL& texture = m_textures[bind.m_idx];
-											GL_CHECK(glBindImageTexture(ii
-												, texture.m_id
-												, bind.m_un.m_compute.m_mip
-												, texture.isCubeMap() ? GL_TRUE : GL_FALSE
-												, 0
-												, s_access[bind.m_un.m_compute.m_access]
-												, s_imageFormat[bind.m_un.m_compute.m_format])
-												);
-											barrier |= GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
-										}
+										const TextureGL& texture = m_textures[bind.m_idx];
+										GL_CHECK(glBindImageTexture(ii
+											, texture.m_id
+											, bind.m_mip
+											, texture.isCubeMap() || texture.m_target == GL_TEXTURE_2D_ARRAY ? GL_TRUE : GL_FALSE
+											, 0
+											, s_access[bind.m_access]
+											, s_imageFormat[bind.m_format])
+											);
+										barrier |= GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 									}
 									break;
 
@@ -6607,7 +6567,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 								commit(*program.m_constantBuffer);
 							}
 
-							viewState.setPredefined<1>(this, view, eye, program, _render, compute);
+							viewState.setPredefined<1>(this, view, program, _render, compute);
 
 							if (isValid(compute.m_indirectBuffer) )
 							{
@@ -7028,13 +6988,13 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 				bool bindAttribs = false;
 				rendererUpdateUniforms(this, _render->m_uniformBuffer[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
-				if (key.m_program != programIdx)
+				if (key.m_program.idx != currentProgram.idx)
 				{
-					programIdx = key.m_program;
-					GLuint id = kInvalidHandle == programIdx ? 0 : m_program[programIdx].m_id;
+					currentProgram = key.m_program;
+					GLuint id = isValid(currentProgram) ? m_program[currentProgram.idx].m_id : 0;
 
 					// Skip rendering if program index is valid, but program is invalid.
-					programIdx = 0 == id ? kInvalidHandle : programIdx;
+					currentProgram = 0 == id ? ProgramHandle{kInvalidHandle} : currentProgram;
 
 					GL_CHECK(glUseProgram(id) );
 					programChanged =
@@ -7042,9 +7002,9 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 						bindAttribs = true;
 				}
 
-				if (kInvalidHandle != programIdx)
+				if (isValid(currentProgram) )
 				{
-					ProgramGL& program = m_program[programIdx];
+					ProgramGL& program = m_program[currentProgram.idx];
 
 					if (constantsChanged
 					&&  NULL != program.m_constantBuffer)
@@ -7052,16 +7012,16 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 						commit(*program.m_constantBuffer);
 					}
 
-					viewState.setPredefined<1>(this, view, eye, program, _render, draw);
+					viewState.setPredefined<1>(this, view, program, _render, draw);
 
 					{
 						for (uint32_t stage = 0; stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS; ++stage)
 						{
 							const Binding& bind = renderBind.m_bind[stage];
 							Binding& current = currentBind.m_bind[stage];
-							if (current.m_idx != bind.m_idx
-							||  current.m_type != bind.m_type
-							||  current.m_un.m_draw.m_textureFlags != bind.m_un.m_draw.m_textureFlags
+							if (current.m_idx          != bind.m_idx
+							||  current.m_type         != bind.m_type
+							||  current.m_samplerFlags != bind.m_samplerFlags
 							||  programChanged)
 							{
 								if (kInvalidHandle != bind.m_idx)
@@ -7071,7 +7031,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 									case Binding::Texture:
 										{
 											TextureGL& texture = m_textures[bind.m_idx];
-											texture.commit(stage, bind.m_un.m_draw.m_textureFlags, _render->m_colorPalette);
+											texture.commit(stage, bind.m_samplerFlags, _render->m_colorPalette);
 										}
 										break;
 
@@ -7175,13 +7135,13 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 							if (bindAttribs || diffStartVertex)
 							{
-								if(kInvalidHandle != boundProgramIdx)
+								if (isValid(boundProgram) )
 								{
-									ProgramGL& boundProgram = m_program[boundProgramIdx];
-									boundProgram.unbindAttributes();
+									m_program[boundProgram.idx].unbindAttributes();
+									boundProgram = BGFX_INVALID_HANDLE;
 								}
 
-								boundProgramIdx = programIdx;
+								boundProgram = currentProgram;
 
 								program.bindAttributesBegin();
 
@@ -7371,10 +7331,10 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 				}
 			}
 
-			if(kInvalidHandle != boundProgramIdx)
+			if (isValid(boundProgram) )
 			{
-				ProgramGL& boundProgram = m_program[boundProgramIdx];
-				boundProgram.unbindAttributes();
+				m_program[boundProgram.idx].unbindAttributes();
+				boundProgram = BGFX_INVALID_HANDLE;
 			}
 
 			submitBlit(bs, BGFX_CONFIG_MAX_VIEWS);

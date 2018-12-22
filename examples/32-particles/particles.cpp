@@ -207,7 +207,7 @@ struct Emitter
 	void gizmo(const float* _view, const float* _proj)
 	{
 		float mtx[16];
-		float scale[3];
+		float scale[3] = { 1.0f, 1.0f, 1.0f };
 
 		ImGuizmo::RecomposeMatrixFromComponents(m_uniforms.m_position, m_uniforms.m_angle, scale, mtx);
 
@@ -290,8 +290,7 @@ public:
 
 		cameraCreate();
 
-		const float initialPos[3] = { 0.0f, 2.0f, -12.0f };
-		cameraSetPosition(initialPos);
+		cameraSetPosition({ 0.0f, 2.0f, -12.0f });
 		cameraSetVerticalAngle(0.0f);
 
 		m_timeOffset = bx::getHPCounter();
@@ -407,11 +406,9 @@ public:
 			DebugDrawEncoder dde;
 			dde.begin(0);
 
-			float center[3] = { 0.0f, 0.0f, 0.0f };
-			dde.drawGrid(Axis::Y, center);
+			dde.drawGrid(Axis::Y, { 0.0f, 0.0f, 0.0f });
 
-			float eye[3];
-			cameraGetPosition(eye);
+			const bx::Vec3 eye = cameraGetPosition();
 
 			m_emitter[currentEmitter].update();
 
